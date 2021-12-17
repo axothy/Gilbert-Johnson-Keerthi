@@ -32,6 +32,13 @@ struct Point2D
 	}
 };
 
+inline Point2D subtract(Point2D a, Point2D b) { a.x -= b.x; a.y -= b.y; return a; }
+inline Point2D negate(Point2D v) { v.x = -v.x; v.y = -v.y; return v; }
+inline Point2D perpendicular(Point2D v) { Point2D p = { v.y, -v.x }; return p; }
+inline double dotProduct(Point2D a, Point2D b) { return a.x * b.x + a.y * b.y; }
+inline double lengthSquared(Point2D v) { return v.x * v.x + v.y * v.y; }
+
+
 using Point = Point2D;
 
 class Figure {
@@ -55,6 +62,7 @@ class Circle : public Figure {
 	double radius_, x_, y_;
 	FigureType type_;
 	int figureID_;
+
 public:
 	Circle(double r, double x, double y, int ID) {
 		setType(CIRCLE);
@@ -94,14 +102,14 @@ public:
 
 	void getData() { std::cout << "RECT" << std::endl; }
 
-	std::vector<Point> getPoints() override { return points; }
+	inline std::vector<Point> getPoints() override { return points; }
 	double getRadius() override { return -1; }
 	double getXCenter() override { return -1; }
 	double getYCenter() override { return -1; }
 
-	void setType(FigureType type) override { type_ = type; }
-	FigureType getType() override { return type_; }
-	int getFigureID() override { return figureID_; }
+	inline void setType(FigureType type) override { type_ = type; }
+	inline FigureType getType() override { return type_; }
+	inline int getFigureID() override { return figureID_; }
 };
 
 class Polygon : public Figure {
@@ -117,15 +125,15 @@ public:
 	}
 	void getData() { std::cout << "POLY" << std::endl; }
 
-	std::vector<Point> getPoints() override { return points; }
+	inline std::vector<Point> getPoints() override { return points; }
 
 	double getRadius() override { return -1; }
 	double getXCenter() override { return -1; }
 	double getYCenter() override { return -1; }
 
-	void setType(FigureType type) override { type_ = type; }
-	FigureType getType() override { return type_; }
-	int getFigureID() override { return figureID_; }
+	inline void setType(FigureType type) override { type_ = type; }
+	inline FigureType getType() override { return type_; }
+	inline int getFigureID() override { return figureID_; }
 };
 
 class Reader {
@@ -252,16 +260,9 @@ public:
 	void showCollisions();
 
 	std::vector<Point> Jostle(std::vector<Point> figure_points);
-	int gjk(const std::vector<Point> figure1, const std::vector<Point> figure2);
+	int GilbertJohnsonKeerthi(const std::vector<Point> figure1, const std::vector<Point> figure2);
 
 private:
-
-	//Basic vector arithmetic operations
-	Point subtract(Point a, Point b) { a.x -= b.x; a.y -= b.y; return a; }
-	Point negate(Point v) { v.x = -v.x; v.y = -v.y; return v; }
-	Point perpendicular(Point v) { Point p = { v.y, -v.x }; return p; }
-	double dotProduct(Point a, Point b) { return a.x * b.x + a.y * b.y; }
-    double lengthSquared(Point v) { return v.x * v.x + v.y * v.y; }
 	Point tripleProduct(Point a, Point b, Point c);
 	Point averagePoint(const std::vector<Point> figure_points);
 	size_t indexOfFurthestPoint(const std::vector<Point> figure_points, Point d);
@@ -350,7 +351,7 @@ std::vector<Point> CollisionDetector::Jostle(std::vector<Point> figure_points)
 	return result;
 }
 
-int CollisionDetector::gjk(const std::vector<Point> figure1, const std::vector<Point> figure2) {
+int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, const std::vector<Point> figure2) {
 
 	int itercount = 0;
 	size_t index = 0; // index of current vertex of simplex
@@ -362,7 +363,7 @@ int CollisionDetector::gjk(const std::vector<Point> figure1, const std::vector<P
 	// initial direction from the center of 1st body to the center of 2nd body
 	d = subtract(position1, position2);
 
-	// if initial direction is zero – set it to any arbitrary axis (we choose X)
+	// if initial direction is zero â€“ set it to any arbitrary axis (we choose X)
 	if ((d.x == 0) && (d.y == 0))
 		d.x = 1.f;
 
@@ -427,10 +428,28 @@ int CollisionDetector::gjk(const std::vector<Point> figure1, const std::vector<P
 
 CollisionDetector::CollisionDetector(std::vector<Figure*>& figures) {
 
+	int collisionDetected;
 	for (int k = 0; k < size(figures); ++k) {
 		for (int i = 0; i < size(figures); ++i) {
 			if (k != i) {
-				int collisionDetected = gjk(Jostle(figures[k]->getPoints()), Jostle(figures[i]->getPoints()));
+				if ((figures[k]->getType() == RECTANGLE || figures[k]->getType() == POLYGON) &&
+					(figures[i]->getType() == RECTANGLE || figures[i]->getType() == POLYGON)) {
+					collisionDetected = GilbertJohnsonKeerthi(Jostle(figures[k]->getPoints()), Jostle(figures[i]->getPoints()));
+				}
+
+				if ((figures[k]->getType() == RECTANGLE || figures[k]->getType() == POLYGON) &&
+					(figures[i]->getType() == CIRCLE)) {
+					//collisionDetected = otheralgo(figures[k]->getPoints(), figures[i]->getPoints());
+				}
+
+				if ((figures[k]->getType() == CIRCLE) && (figures[i]->getType() == RECTANGLE || figures[i]->getType() == POLYGON)) {
+					//collisionDetected = otheralgo(figures[k]->getPoints(), figures[i]->getPoints());
+				}
+
+				if ((figures[k]->getType() == CIRCLE) && (figures[i]->getType() == CIRCLE)) {
+					//collisionDetected = circlewithcircle(figures[k]->getPoints(), figures[i]->getPoints());
+				}
+				
 				if (collisionDetected)
 				{
 					collided_figures.push_back({ figures[k]->getFigureID(), figures[i]->getFigureID() });
@@ -438,7 +457,6 @@ CollisionDetector::CollisionDetector(std::vector<Figure*>& figures) {
 			}
 		}
 	}
-
 }
 
 void CollisionDetector::showCollisions() {
