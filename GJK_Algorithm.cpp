@@ -3,6 +3,7 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <map>
 
 enum FigureType {
 	RECTANGLE, POLYGON, CIRCLE, EXCEPTION_TYPE
@@ -44,7 +45,7 @@ using Point = Point2D;
 class Figure {
 public:
 	FigureType type_ = EXCEPTION_TYPE;
-	int figureID;
+	int figureID_;
 
 	virtual void getData() = 0;
 
@@ -53,8 +54,7 @@ public:
 
 	virtual std::vector<Point> getPoints() = 0;
 	virtual double getRadius() = 0;
-	virtual double getXCenter() = 0;
-	virtual double getYCenter() = 0;
+	virtual Point getCenter() = 0;
 	virtual int getFigureID() = 0;
 };
 
@@ -80,8 +80,7 @@ public:
 
 	std::vector<Point> getPoints() { return {}; }
 	double getRadius() override { return radius_; }
-	double getXCenter() override { return x_; }
-	double getYCenter() override { return y_; }
+	Point getCenter() override { return { x_, y_ }; }
 
 };
 
@@ -104,8 +103,7 @@ public:
 
 	inline std::vector<Point> getPoints() override { return points; }
 	double getRadius() override { return -1; }
-	double getXCenter() override { return -1; }
-	double getYCenter() override { return -1; }
+	Point getCenter() { return {}; }
 
 	inline void setType(FigureType type) override { type_ = type; }
 	inline FigureType getType() override { return type_; }
@@ -128,8 +126,7 @@ public:
 	inline std::vector<Point> getPoints() override { return points; }
 
 	double getRadius() override { return -1; }
-	double getXCenter() override { return -1; }
-	double getYCenter() override { return -1; }
+	Point getCenter() { return {}; }
 
 	inline void setType(FigureType type) override { type_ = type; }
 	inline FigureType getType() override { return type_; }
@@ -255,43 +252,35 @@ public:
 	CollisionDetector();
 	CollisionDetector(std::vector<Figure*>& figures);
 
-	std::vector<std::pair<int, int>> collided_figures;
+	std::map<int, int> collided_figures;
 
 	void showCollisions();
 
 	std::vector<Point> Jostle(std::vector<Point> figure_points);
 	int GilbertJohnsonKeerthi(const std::vector<Point> figure1, const std::vector<Point> figure2);
+	int CirclesCollisions(double r1, double r2, Point center1, Point center2);
 
 private:
 	Point tripleProduct(Point a, Point b, Point c);
 	Point averagePoint(const std::vector<Point> figure_points);
 	size_t indexOfFurthestPoint(const std::vector<Point> figure_points, Point d);
-	Point support(const std::vector<Point> figure_points1,
-		const std::vector<Point> figure_points2, Point d);
+	Point support(const std::vector<Point> figure_points1, const std::vector<Point> figure_points2, Point d);
 	double Perturbation();
 
 };
-
-
-// Triple product expansion is used to calculate perpendicular normal vectors
-// which kinda 'prefer' pointing towards the Origin in Minkowski space
 
 Point CollisionDetector::tripleProduct(Point a, Point b, Point c) {
 
 	Point r;
 
-	float ac = a.x * c.x + a.y * c.y; // perform a.dot(c)
-	float bc = b.x * c.x + b.y * c.y; // perform b.dot(c)
+	double ac = a.x * c.x + a.y * c.y; 
+	double bc = b.x * c.x + b.y * c.y; 
 
-	// perform b * a.dot(c) - a * b.dot(c)
 	r.x = b.x * ac - a.x * bc;
 	r.y = b.y * ac - a.y * bc;
 	return r;
 }
 
-// This is to compute average center (roughly). It might be different from
-// Center of Gravity, especially for bodies with nonuniform density,
-// but this is ok as initial direction of simplex search in GJK.
 Point CollisionDetector::averagePoint(const std::vector<Point> figure_points) {
 	Point avg = { 0, 0 };
 	for (auto i = figure_points.begin(); i != figure_points.end(); ++i) {
@@ -304,8 +293,6 @@ Point CollisionDetector::averagePoint(const std::vector<Point> figure_points) {
 	return avg;
 }
 
-
-// Get furthest vertex along a certain direction
 size_t CollisionDetector::indexOfFurthestPoint(const std::vector<Point> figure_points, Point d) {
 
 	double maxProduct = dotProduct(d, *figure_points.begin());
@@ -322,17 +309,12 @@ size_t CollisionDetector::indexOfFurthestPoint(const std::vector<Point> figure_p
 	return index;
 }
 
-// Minkowski sum support function for GJK
 Point CollisionDetector::support(const std::vector<Point> figure_points1,
 	const std::vector<Point> figure_points2, Point d) {
 
-	// get furthest point of first body along an arbitrary direction
 	size_t i = indexOfFurthestPoint(figure_points1, d);
-
-	// get furthest point of second body along the opposite direction
 	size_t j = indexOfFurthestPoint(figure_points2, negate(d));
 
-	// subtract (Minkowski sum) the two points to see if bodies 'overlap'
 	return subtract(figure_points1.at(i), figure_points2.at(j));
 }
 
@@ -354,26 +336,23 @@ std::vector<Point> CollisionDetector::Jostle(std::vector<Point> figure_points)
 int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, const std::vector<Point> figure2) {
 
 	int itercount = 0;
-	size_t index = 0; // index of current vertex of simplex
+	size_t index = 0; 
 	Point a, b, c, d, ao, ab, ac, abperp, acperp, simplex[3];
 
-	Point position1 = averagePoint(figure1); // not a CoG but
-	Point position2 = averagePoint(figure2); // it's ok for GJK )
+	Point position1 = averagePoint(figure1); 
+	Point position2 = averagePoint(figure2); 
 
-	// initial direction from the center of 1st body to the center of 2nd body
 	d = subtract(position1, position2);
 
-	// if initial direction is zero – set it to any arbitrary axis (we choose X)
 	if ((d.x == 0) && (d.y == 0))
 		d.x = 1.f;
 
-	// set the first support as initial point of the new simplex
 	a = simplex[0] = support(figure1, figure2, d);
 
 	if (dotProduct(a, d) <= 0)
-		return 0; // no collision
+		return 0; 
 
-	d = negate(a); // The next search direction is always towards the origin, so the next search direction is negate(a)
+	d = negate(a); 
 
 	while (1) {
 		itercount++;
@@ -381,30 +360,29 @@ int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, c
 		a = simplex[++index] = support(figure1, figure2, d);
 
 		if (dotProduct(a, d) <= 0)
-			return 0; // no collision
+			return 0; 
 
-		ao = negate(a); // from point A to Origin is just negative A
+		ao = negate(a); 
 
-		// simplex has 2 points (a line segment, not a triangle yet)
 		if (index < 2) {
 			b = simplex[0];
-			ab = subtract(b, a); // from point A to B
-			d = tripleProduct(ab, ao, ab); // normal to AB towards Origin
+			ab = subtract(b, a); 
+			d = tripleProduct(ab, ao, ab); 
 			if (lengthSquared(d) == 0)
 				d = perpendicular(ab);
-			continue; // skip to next iteration
+			continue;
 		}
 
 		b = simplex[1];
 		c = simplex[0];
-		ab = subtract(b, a); // from point A to B
-		ac = subtract(c, a); // from point A to C
+		ab = subtract(b, a); 
+		ac = subtract(c, a); 
 
 		acperp = tripleProduct(ab, ac, ac);
 
 		if (dotProduct(acperp, ao) >= 0) {
 
-			d = acperp; // new direction is normal to AC towards Origin
+			d = acperp; 
 
 		}
 		else {
@@ -412,18 +390,27 @@ int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, c
 			abperp = tripleProduct(ac, ab, ab);
 
 			if (dotProduct(abperp, ao) < 0)
-				return 1; // collision
+				return 1;
 
-			simplex[0] = simplex[1]; // swap first element (point C)
+			simplex[0] = simplex[1]; 
 
-			d = abperp; // new direction is normal to AB towards Origin
+			d = abperp; 
 		}
 
-		simplex[1] = simplex[2]; // swap element in the middle (point B)
+		simplex[1] = simplex[2]; 
 		--index;
 	}
 
 	return 0;
+}
+
+int CollisionDetector::CirclesCollisions(double r1, double r2, Point center1, Point center2) {
+
+	double distance = sqrt((center2.x - center1.x) * (center2.x - center1.x) +
+		(center2.y - center1.y) * (center2.y - center1.y));
+
+	if (distance <= (r1 + r2)) return 1;
+	else return 0;
 }
 
 CollisionDetector::CollisionDetector(std::vector<Figure*>& figures) {
@@ -439,20 +426,26 @@ CollisionDetector::CollisionDetector(std::vector<Figure*>& figures) {
 
 				if ((figures[k]->getType() == RECTANGLE || figures[k]->getType() == POLYGON) &&
 					(figures[i]->getType() == CIRCLE)) {
-					//collisionDetected = otheralgo(figures[k]->getPoints(), figures[i]->getPoints());
 				}
 
 				if ((figures[k]->getType() == CIRCLE) && (figures[i]->getType() == RECTANGLE || figures[i]->getType() == POLYGON)) {
-					//collisionDetected = otheralgo(figures[k]->getPoints(), figures[i]->getPoints());
 				}
 
 				if ((figures[k]->getType() == CIRCLE) && (figures[i]->getType() == CIRCLE)) {
-					//collisionDetected = circlewithcircle(figures[k]->getPoints(), figures[i]->getPoints());
+					collisionDetected = CirclesCollisions(figures[k]->getRadius(), figures[i]->getRadius(),
+						figures[k]->getCenter(), figures[i]->getCenter());
 				}
 				
 				if (collisionDetected)
 				{
-					collided_figures.push_back({ figures[k]->getFigureID(), figures[i]->getFigureID() });
+
+					if (figures[i]->getFigureID() > figures[k]->getFigureID()) {
+						collided_figures.insert({ figures[k]->getFigureID(), figures[i]->getFigureID() });
+					}
+
+					if (figures[i]->getFigureID() < figures[k]->getFigureID()) {
+						collided_figures.insert({ figures[i]->getFigureID(), figures[k]->getFigureID() });
+					}
 				}
 			}
 		}
