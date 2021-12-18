@@ -56,10 +56,12 @@ public:
 	virtual double getRadius() = 0;
 	virtual Point getCenter() = 0;
 	virtual int getFigureID() = 0;
+
+	virtual const bool isDotInFigure(Point point) = 0;
 };
 
 class Circle : public Figure {
-	double radius_, x_, y_;
+	double radius_;
 	FigureType type_;
 	int figureID_;
 
@@ -82,6 +84,14 @@ public:
 	double getRadius() override { return radius_; }
 	Point getCenter() override { return { x_, y_ }; }
 
+	const bool isDotInFigure(Point point) override {
+		if ((x_ - point.x) * (x_ - point.x) + (y_ - point.y) * (y_ - point.y) < radius_ * radius_) {
+			return true;
+		}
+		return false;
+	}
+
+	double x_, y_;
 };
 
 class Rectangle : public Figure {
@@ -108,6 +118,8 @@ public:
 	inline void setType(FigureType type) override { type_ = type; }
 	inline FigureType getType() override { return type_; }
 	inline int getFigureID() override { return figureID_; }
+
+	const bool isDotInFigure(Point point) override { return -1; }
 };
 
 class Polygon : public Figure {
@@ -131,6 +143,18 @@ public:
 	inline void setType(FigureType type) override { type_ = type; }
 	inline FigureType getType() override { return type_; }
 	inline int getFigureID() override { return figureID_; }
+
+	const bool isDotInFigure(Point point) {
+		bool result = false;
+		int j = points.size() - 1;
+		for (int i = 0; i < points.size(); i++) {
+			if ((points[i].y < point.y && points[j].y >= point.y || points[j].y < point.y && points[i].y >= point.y) &&
+				(points[i].x + (point.y - points[i].y) / (points[j].y - points[i].y) * (points[j].x - points[i].x) < point.x))
+				result = !result;
+			j = i;
+		}
+		return result;
+	}
 };
 
 class Reader {
@@ -257,8 +281,9 @@ public:
 	void showCollisions();
 
 	std::vector<Point> Jostle(std::vector<Point> figure_points);
-	int GilbertJohnsonKeerthi(const std::vector<Point> figure1, const std::vector<Point> figure2);
-	int CirclesCollisions(double r1, double r2, Point center1, Point center2);
+	bool GilbertJohnsonKeerthi(const std::vector<Point> figure1, const std::vector<Point> figure2);
+	bool CirclesCollisions(double r1, double r2, Point center1, Point center2);
+	bool Circle_PolygonCollisions(Circle& circle, Figure& polygon);
 
 private:
 	Point tripleProduct(Point a, Point b, Point c);
@@ -273,8 +298,8 @@ Point CollisionDetector::tripleProduct(Point a, Point b, Point c) {
 
 	Point r;
 
-	double ac = a.x * c.x + a.y * c.y; 
-	double bc = b.x * c.x + b.y * c.y; 
+	double ac = a.x * c.x + a.y * c.y;
+	double bc = b.x * c.x + b.y * c.y;
 
 	r.x = b.x * ac - a.x * bc;
 	r.y = b.y * ac - a.y * bc;
@@ -320,7 +345,7 @@ Point CollisionDetector::support(const std::vector<Point> figure_points1,
 
 double CollisionDetector::Perturbation()
 {
-	return ((double)rand() / (double)RAND_MAX) * FLT_EPSILON * 100.0f * ((rand() % 2) ? 1.0f : -1.0f);
+	return ((double)rand() / (double)RAND_MAX) * DBL_EPSILON * 100.0f * ((rand() % 2) ? 1.0f : -1.0f);
 }
 
 std::vector<Point> CollisionDetector::Jostle(std::vector<Point> figure_points)
@@ -333,14 +358,14 @@ std::vector<Point> CollisionDetector::Jostle(std::vector<Point> figure_points)
 	return result;
 }
 
-int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, const std::vector<Point> figure2) {
+bool CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, const std::vector<Point> figure2) {
 
 	int itercount = 0;
-	size_t index = 0; 
+	size_t index = 0;
 	Point a, b, c, d, ao, ab, ac, abperp, acperp, simplex[3];
 
-	Point position1 = averagePoint(figure1); 
-	Point position2 = averagePoint(figure2); 
+	Point position1 = averagePoint(figure1);
+	Point position2 = averagePoint(figure2);
 
 	d = subtract(position1, position2);
 
@@ -350,9 +375,9 @@ int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, c
 	a = simplex[0] = support(figure1, figure2, d);
 
 	if (dotProduct(a, d) <= 0)
-		return 0; 
+		return 0;
 
-	d = negate(a); 
+	d = negate(a);
 
 	while (1) {
 		itercount++;
@@ -360,14 +385,14 @@ int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, c
 		a = simplex[++index] = support(figure1, figure2, d);
 
 		if (dotProduct(a, d) <= 0)
-			return 0; 
+			return 0;
 
-		ao = negate(a); 
+		ao = negate(a);
 
 		if (index < 2) {
 			b = simplex[0];
-			ab = subtract(b, a); 
-			d = tripleProduct(ab, ao, ab); 
+			ab = subtract(b, a);
+			d = tripleProduct(ab, ao, ab);
 			if (lengthSquared(d) == 0)
 				d = perpendicular(ab);
 			continue;
@@ -375,14 +400,14 @@ int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, c
 
 		b = simplex[1];
 		c = simplex[0];
-		ab = subtract(b, a); 
-		ac = subtract(c, a); 
+		ab = subtract(b, a);
+		ac = subtract(c, a);
 
 		acperp = tripleProduct(ab, ac, ac);
 
 		if (dotProduct(acperp, ao) >= 0) {
 
-			d = acperp; 
+			d = acperp;
 
 		}
 		else {
@@ -392,19 +417,19 @@ int CollisionDetector::GilbertJohnsonKeerthi(const std::vector<Point> figure1, c
 			if (dotProduct(abperp, ao) < 0)
 				return 1;
 
-			simplex[0] = simplex[1]; 
+			simplex[0] = simplex[1];
 
-			d = abperp; 
+			d = abperp;
 		}
 
-		simplex[1] = simplex[2]; 
+		simplex[1] = simplex[2];
 		--index;
 	}
 
 	return 0;
 }
 
-int CollisionDetector::CirclesCollisions(double r1, double r2, Point center1, Point center2) {
+bool CollisionDetector::CirclesCollisions(double r1, double r2, Point center1, Point center2) {
 
 	double distance = sqrt((center2.x - center1.x) * (center2.x - center1.x) +
 		(center2.y - center1.y) * (center2.y - center1.y));
@@ -413,9 +438,28 @@ int CollisionDetector::CirclesCollisions(double r1, double r2, Point center1, Po
 	else return 0;
 }
 
+bool CollisionDetector::Circle_PolygonCollisions(Circle& circle, Figure& polygon)
+{
+
+	std::vector<Point> test = polygon.getPoints();
+
+	for (auto i = test.begin(); i != test.end(); ++i)
+	{
+		if (circle.isDotInFigure(*i)) return 1;
+	}
+
+	Point center = circle.getCenter();
+
+	if (polygon.isDotInFigure(center)) return 1;
+	
+	return 0;
+
+}
+
 CollisionDetector::CollisionDetector(std::vector<Figure*>& figures) {
 
-	int collisionDetected;
+	bool collisionDetected;
+
 	for (int k = 0; k < size(figures); ++k) {
 		for (int i = 0; i < size(figures); ++i) {
 			if (k != i) {
@@ -426,16 +470,21 @@ CollisionDetector::CollisionDetector(std::vector<Figure*>& figures) {
 
 				if ((figures[k]->getType() == RECTANGLE || figures[k]->getType() == POLYGON) &&
 					(figures[i]->getType() == CIRCLE)) {
+
+					collisionDetected = Circle_PolygonCollisions(static_cast<Circle&>(*figures[i]), *figures[k]);
+
 				}
 
 				if ((figures[k]->getType() == CIRCLE) && (figures[i]->getType() == RECTANGLE || figures[i]->getType() == POLYGON)) {
+
+					collisionDetected = Circle_PolygonCollisions(static_cast<Circle&>(*figures[k]), *figures[i]);
 				}
 
 				if ((figures[k]->getType() == CIRCLE) && (figures[i]->getType() == CIRCLE)) {
 					collisionDetected = CirclesCollisions(figures[k]->getRadius(), figures[i]->getRadius(),
 						figures[k]->getCenter(), figures[i]->getCenter());
 				}
-				
+
 				if (collisionDetected)
 				{
 
