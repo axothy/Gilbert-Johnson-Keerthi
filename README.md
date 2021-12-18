@@ -1,4 +1,4 @@
 # Gilbert-Johnson-Keerthi
-Collision detector algorithm for polygons.
+Collision detector algorithm for polygons, rectangles and circles.
 
-Example of file attached
+Example of txt file attached
