@@ -15,6 +15,15 @@ const bool Circle::isDotInFigure(Point point) {
 	return false;
 }
 
+
+const bool Rectangle::isDotInFigure(Point point) {
+	if (point.x >= points.at(0).x && point.y <= points.at(0).y && point.x <= points.at(2).x && point.y >= points.at(2).x) {
+		return true;
+	}
+
+	return false;
+}
+
 Rectangle::Rectangle(double x1, double y1, double x3, double y3, int ID) {
 	setType(RECTANGLE);
 	figureID_ = ID;
@@ -88,63 +97,6 @@ Reader::Reader(std::vector<Figure*>& figures) {
 			figures.push_back(new Polygon(points, ID));
 			inputstr = checkStr;
 			ID++;
-
 		}
-
-
-	}
-}
-
-Reader::Reader(std::string& initstr) {
-	std::ifstream input("input.txt");
-
-	if (input.is_open() == false) {
-		exit(0);
-	}
-
-	std::string inputstr;
-
-	while (!input.eof()) {
-		input >> inputstr;
-		initstr = inputstr + ' ';
-		if (inputstr == "RECTANGLE") {
-			for (int i = 0; i < 4; i++) {
-				input >> inputstr;
-				initstr += inputstr + ' ';
-			}
-		}
-		else if (inputstr == "CIRCLE") {
-			for (int i = 0; i < 3; i++) {
-				input >> inputstr;
-				initstr += inputstr + ' ';
-			}
-		}
-		else if (inputstr == "POLYGON") {
-
-		}
-	}
-}
-
-void Initializer::InitFigures(const std::string& initstring, std::vector<Figure*>& figures) {
-	std::stringstream datastream(initstring);
-	std::string datastring;
-	int ID = 0;
-
-	datastream >> datastring;
-	if (datastring == "RECTANGLE") {
-		double x1, y1, x3, y3;
-		datastream >> x1 >> y1 >> x3 >> y3;
-		figures.push_back(new Rectangle(x1, y1, x3, y3, ID));
-		ID++;
-	}
-	else if (datastring == "CIRCLE") {
-		double r, x, y;
-		datastream >> r >> x >> y;
-		figures.push_back(new Circle(r, x, y, ID));
-		ID++;
-
-	}
-	else if (datastring == "POLYGON") {
-
 	}
 }
