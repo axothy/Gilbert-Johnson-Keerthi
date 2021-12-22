@@ -1,13 +1,13 @@
 #pragma once
 #include "Figure.hpp"
-#include <map>
+#include <set>
 
 class CollisionDetector {
 public:
 	CollisionDetector();
 	CollisionDetector(std::vector<Figure*>& figures);
 
-	std::map<int, int> collided_figures;
+	std::set<int, int> collided_figures;
 
 	void showCollisions();
 
