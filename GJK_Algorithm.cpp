@@ -145,21 +145,68 @@ bool CollisionDetector::CirclesCollisions(double r1, double r2, Point center1, P
 	else return 0;
 }
 
+double maxe(Point2D a) {
+	if (a.x < a.y) {
+		return a.y;
+	}
+
+	return a.x;
+}
+
+double mine(Point2D a) {
+	if (a.x > a.y) {
+		return a.x;
+	}
+
+	return a.y;
+}
+
+double distance(Point a, Point b) {
+	return sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+}
+
 bool CollisionDetector::Circle_PolygonCollisions(Circle& circle, Figure& polygon)
 {
+	std::vector<Point> pts = polygon.getPoints();
 
-	std::vector<Point> test = polygon.getPoints();
-
-	for (auto i = test.begin(); i != test.end(); ++i)
+	for (auto i = pts.begin(); i != pts.end(); ++i)
 	{
 		if (circle.isDotInFigure(*i)) return 1;
 	}
 
 	Point center = circle.getCenter();
-
-	if (polygon.isDotInFigure(center)) return 1;
+	Point root1 = { 0,0 }, root2 = { 0,0 }; //корни решения пересечения прямой и окружности
 	
-	return 0;
+	pts.push_back(pts.at(0));
+
+	for (int i = 0; i < size(pts)-1; ++i)
+	{
+		double dx = pts.at(i+1).x - pts.at(i).x;
+		double dy = pts.at(i + 1).y - pts.at(i).y;
+
+		double A = dx * dx + dy * dy;
+		double B = 2 * (dx * (pts.at(i).x - circle.getCenter().x) + dy * (pts.at(i).y - circle.getCenter().y));
+		double C = (pts.at(i).x - circle.getCenter().x) * (pts.at(i).x - circle.getCenter().x) +
+			(pts.at(i).y - circle.getCenter().y) * (pts.at(i).y - circle.getCenter().y) -
+			circle.getRadius() * circle.getRadius();
+
+		double det = B * B - 4 * A * C;
+
+		if (det >= 0)
+		{
+			//Находим корни
+			double t = (double)((-B + sqrt(det)) / (2 * A));
+			root1 = { pts.at(i).x + t * dx, pts.at(i).y + t * dy };
+			t = (double)((-B - sqrt(det)) / (2 * A));
+			root2 = { pts.at(i).x + t * dx, pts.at(i).y + t * dy };
+
+			//Проверяем лежат ли корни на отрезке составленного из вершин полигона
+			if (distance(pts.at(i), root1) + distance(root1, pts.at(i + 1)) == distance(pts.at(i), pts.at(i + 1))) return true;
+			if (distance(pts.at(i), root2) + distance(root2, pts.at(i + 1)) == distance(pts.at(i), pts.at(i + 1))) return true;
+		}
+	}
+
+	return false;
 
 }
 
@@ -194,7 +241,7 @@ CollisionDetector::CollisionDetector(std::vector<Figure*>& figures) {
 
 				if (collisionDetected)
 				{
-
+					collisionDetected = false;
 					if (figures[i]->getFigureID() > figures[k]->getFigureID()) {
 						collided_figures.insert({ figures[k]->getFigureID(), figures[i]->getFigureID() });
 					}
